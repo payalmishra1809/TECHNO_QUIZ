@@ -214,7 +214,10 @@
   .bp-msg { font-size:12px; color:var(--gold-2); margin:4px 0; }
   .bp-actions { display:flex; gap:6px; flex-wrap:wrap; margin:10px 0 12px; }
   .bp-list { display:flex; flex-direction:column; gap:6px; }
-  .bp-row { display:grid; grid-template-columns: 34px minmax(0,1fr) auto auto; gap:8px; align-items:center; background:var(--card-2); border:1px solid var(--border); border-radius:10px; padding:8px 10px; animation: pop .3s ease; }
+  .bp-start { width:100%; padding:14px; font-size:16px; font-weight:900; letter-spacing:1px; border-radius:12px; margin-top:10px; }
+  .bp-cols { display:flex; justify-content:space-between; font-size:10.5px; font-weight:800; letter-spacing:1px; text-transform:uppercase; color:var(--muted); padding:0 12px 6px 52px; }
+  #bpClock { font-variant-numeric: tabular-nums; margin-left:4px; }
+  .bp-row { display:grid; grid-template-columns: 34px minmax(0,1fr) auto; gap:8px; align-items:center; background:var(--card-2); border:1px solid var(--border); border-radius:10px; padding:8px 10px; animation: pop .3s ease; }
   .bp-row.first { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold) inset; }
   .bp-row.answering { border-color: var(--teal); box-shadow: 0 0 0 2px var(--teal) inset; }
   .bp-row.wrong { opacity:.45; }
@@ -222,7 +225,7 @@
   .bp-team { font-weight:700; font-size:14.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .bp-team small { display:block; font-size:10.5px; font-weight:700; color:var(--muted); letter-spacing:.5px; }
   .bp-time { font-size:13px; font-weight:700; color:var(--muted); font-variant-numeric: tabular-nums; }
-  .bp-gap { font-size:14px; font-weight:900; color:var(--gold-2); font-variant-numeric: tabular-nums; min-width:62px; text-align:right; }
+  .bp-gap { font-size:17px; font-weight:900; color:var(--gold-2); font-variant-numeric: tabular-nums; min-width:70px; text-align:right; }
   .bp-empty { color:var(--muted); font-size:13px; text-align:center; padding:18px 6px; border:1px dashed var(--border); border-radius:10px; }
   .mini-chip .dot { width:8px; height:8px; border-radius:50%; background:#6b7890; opacity:.5; }
   .mini-chip .dot.on { background:var(--good); opacity:1; box-shadow:0 0 6px var(--good); }
@@ -1010,7 +1013,7 @@ function genRoomCode(){
 }
 const buzz = {
   room:null, peer:null, conns:[], status:"offline", msg:"",
-  open:true, rid:1, openedAt:bnow(), results:[], resolved:false, retryT:null
+  open:false, rid:1, openedAt:bnow(), results:[], resolved:false, retryT:null
 };
 function loadBuzzRoom(){
   try{ buzz.room = localStorage.getItem(BUZZ_ROOM_KEY); }catch(e){}
@@ -1103,13 +1106,16 @@ function handlePhoneBuzz(conn, d){
   if(!buzz.open || d.rid !== buzz.rid || !isBuzzEligible(team) || buzz.results.some(r=>r.team===team)){
     sendBuzzState(conn); return;
   }
-  // Phone reports the touch moment in console-clock time. Trust it within a
-  // sane window (never later than arrival, at most 1s earlier), else use arrival.
+  // Phone reports (in console-clock time) when it touched the button and when its
+  // button turned live. Reaction = touch − live, so a phone whose "START" message
+  // arrived a bit later is not penalised. Values are clamped to sane windows.
   let t = arrival;
   if(d.synced && typeof d.t === "number" && isFinite(d.t)) t = Math.min(arrival, Math.max(arrival-1000, d.t));
   t = Math.max(t, buzz.openedAt);
-  buzz.results.push({ team, t, ms: t - buzz.openedAt });
-  buzz.results.sort((a,b)=> a.t - b.t);
+  let seen = buzz.openedAt;
+  if(d.synced && typeof d.seen === "number" && isFinite(d.seen)) seen = Math.min(t, Math.max(buzz.openedAt, Math.min(d.seen, buzz.openedAt+3000)));
+  buzz.results.push({ team, t, ms: Math.max(0, t - seen) });
+  buzz.results.sort((a,b)=> a.ms - b.ms);
   if(buzz.results.length === 1) sndBuzz();
   broadcastBuzzState();
   if(autoPickBuzzed()) render(); else renderBuzzPanel();
@@ -1129,29 +1135,41 @@ function autoPickBuzzed(){
   return true;
 }
 
-function buzzStateMsg(){
+// Each phone only learns whether ITS team has buzzed — the order and times stay on the host.
+function buzzStateMsg(team){
   const cfg = currentRoundCfg();
   return {
     type:"state", rid:buzz.rid, open:buzz.open, round:cfg.label,
     teams: state.teams.map(t=>t.name),
     eligible: state.teams.map((t,i)=> isBuzzEligible(i)),
-    results: buzz.results.map(r=>({ team:r.team, ms:Math.round(r.ms) }))
+    buzzed: team !== null && team !== undefined && buzz.results.some(r=> r.team === team)
   };
 }
-function sendBuzzState(conn){ safeSend(conn, buzzStateMsg()); }
+function sendBuzzState(conn){ safeSend(conn, buzzStateMsg(conn.team)); }
 function broadcastBuzzState(){
   if(typeof buzz === "undefined" || !buzz.conns.length) return;
-  const msg = buzzStateMsg();
-  buzz.conns.forEach(c=> safeSend(c, msg));
+  buzz.conns.forEach(c=> sendBuzzState(c));
 }
 
+// New question: clear the list and keep buzzers locked until the host presses Start.
 function resetBuzzers(){
+  buzz.rid++; buzz.open = false;
+  buzz.results = []; buzz.resolved = false; state.autoBuzz = false;
+  broadcastBuzzState(); renderBuzzPanel();
+}
+// Question finished reading: open buzzers — every team's time counts from now.
+function startBuzzers(){
   buzz.rid++; buzz.open = true; buzz.openedAt = bnow();
   buzz.results = []; buzz.resolved = false; state.autoBuzz = false;
   broadcastBuzzState(); renderBuzzPanel();
 }
 function lockBuzzers(){ buzz.open = false; broadcastBuzzState(); renderBuzzPanel(); }
-function reopenBuzzers(){ buzz.open = true; broadcastBuzzState(); renderBuzzPanel(); }
+
+// Live stopwatch on the host while buzzers are open
+setInterval(()=>{
+  const el = document.getElementById("bpClock");
+  if(el && buzz.open) el.textContent = ((bnow() - buzz.openedAt)/1000).toFixed(1)+"s";
+}, 100);
 
 function renderBuzzConnections(){ renderMiniScore(); renderBuzzPanel(); }
 
@@ -1170,7 +1188,6 @@ function renderBuzzPanel(){
   if(!buzzPanelEl || typeof buzz === "undefined") return;
   const connectedTeams = state.teams.filter((t,i)=> teamConnected(i)).length;
   const medals = ["🥇","🥈","🥉"];
-  const leader = buzz.results[0];
   let rows = "";
   buzz.results.forEach((r, k)=>{
     const wrong = state.lockedOut.includes(r.team);
@@ -1181,30 +1198,40 @@ function renderBuzzPanel(){
       '<div class="bp-row'+(k===0?" first":"")+(answering?" answering":"")+(wrong?" wrong":"")+'">' +
         '<span class="bp-rank">'+(k<3? medals[k] : (k+1))+'</span>' +
         '<span class="bp-team">'+esc(state.teams[r.team].name)+(tag?'<small>'+tag+'</small>':'')+'</span>' +
-        '<span class="bp-time" title="Time since buzzers opened">'+fmtSec(r.ms)+'</span>' +
-        '<span class="bp-gap">'+(k===0? "⚡ FIRST" : "+"+fmtSec(r.t - leader.t))+'</span>' +
+        '<span class="bp-gap" title="Seconds from START to buzz">'+fmtSec(r.ms)+'</span>' +
       '</div>';
   });
   if(!rows){
-    rows = '<div class="bp-empty">' + (buzz.open ? "Buzzers are live — waiting for the first press…" : "Buzzers locked. Press Reset to open them.") + '</div>';
+    rows = '<div class="bp-empty">' + (buzz.open
+      ? "Buzzers are LIVE — waiting for the first press…"
+      : "Read the question, then press <b>▶ START BUZZERS</b>.<br>Each team's time is counted from that moment.") + '</div>';
   }
+  const clock = buzz.open ? ((bnow() - buzz.openedAt)/1000).toFixed(1)+"s" : "";
   buzzPanelEl.innerHTML =
     '<div class="bp-head"><div class="bp-title">📱 Live Buzzers</div>' +
-      '<span class="bp-pill '+(buzz.open?"open":"locked")+'">'+(buzz.open?"● OPEN":"🔒 LOCKED")+'</span></div>' +
+      '<span class="bp-pill '+(buzz.open?"open":"locked")+'">'+(buzz.open?'● LIVE <span id="bpClock">'+clock+'</span>':"🔒 LOCKED")+'</span></div>' +
     '<div class="bp-meta"><span class="bp-net '+buzz.status+'"></span>Room <b>'+esc(buzz.room)+'</b> · '+connectedTeams+'/'+state.teams.length+' teams connected</div>' +
     (buzz.msg ? '<div class="bp-msg">'+esc(buzz.msg)+'</div>' : '') +
+    (buzz.open
+      ? '<button class="btn bad bp-start" id="bpStart">⏹ STOP BUZZERS</button>'
+      : '<button class="btn good bp-start" id="bpStart">▶ START BUZZERS</button>') +
     '<div class="bp-actions">' +
-      '<button class="btn gold small" id="bpReset">↺ Reset Buzzers</button>' +
-      '<button class="btn small" id="bpLock">'+(buzz.open?"🔒 Lock":"🔓 Open")+'</button>' +
+      '<button class="btn small" id="bpReset">↺ Clear</button>' +
       '<button class="btn teal small" id="bpJoin">🔗 Join Links / QR</button>' +
     '</div>' +
+    (rows.indexOf("bp-row") >= 0 ? '<div class="bp-cols"><span>Team</span><span>Time to buzz</span></div>' : '') +
     '<div class="bp-list">'+rows+'</div>';
+  document.getElementById("bpStart").onclick = ()=>{
+    if(buzz.open){ lockBuzzers(); return; }
+    const cfg = currentRoundCfg();
+    if(cfg.type==="buzzer" || cfg.type==="mcq-buzzer"){ state.buzzed = null; state.lockedOut = []; }
+    startBuzzers(); render();
+  };
   document.getElementById("bpReset").onclick = ()=>{
     const cfg = currentRoundCfg();
     if(cfg.type==="buzzer" || cfg.type==="mcq-buzzer"){ state.buzzed = null; state.lockedOut = []; }
     resetBuzzers(); render();
   };
-  document.getElementById("bpLock").onclick = ()=>{ buzz.open ? lockBuzzers() : reopenBuzzers(); };
   document.getElementById("bpJoin").onclick = openJoinModal;
 }
 

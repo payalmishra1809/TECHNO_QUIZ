@@ -171,8 +171,6 @@
       </button>
       <div class="status" id="status"></div>
     </div>
-    <div class="ranks" id="ranks"><h4>Buzz order</h4><div id="rankList"></div></div>
-    <footer><button class="link" id="changeTeam">Change team</button></footer>
   </section>
 </div>
 
@@ -206,7 +204,7 @@ let peer = null, conn = null, retryT = null;
 let host = null;          // latest state from host
 let samples = [], offset = 0, synced = false;   // clock sync to host
 let pending = null;       // {rid, at} — press sent, waiting for confirmation
-let lastRank = -1;
+let liveAt = 0;           // local time the button turned live for the current question
 
 function setConn(kind, txt){
   $("conn").className = "conn " + kind;
@@ -288,18 +286,14 @@ function onMsg(d){
   if(!d || typeof d !== "object") return;
   if(d.type === "pong"){ onPong(d); return; }
   if(d.type === "state"){
-    const prevRid = host && host.rid;
+    const wasLive = host && host.open && host.rid === d.rid;
     host = d;
-    if(pending && (pending.rid !== d.rid || myResult())) pending = null;
-    if(prevRid !== undefined && prevRid !== d.rid){ lastRank = -1; }
+    if(d.open && !wasLive) liveAt = now();   // button turns red right now
+    if(pending && (pending.rid !== d.rid || d.buzzed)) pending = null;
     render();
   }
 }
-function myResult(){
-  if(!host || team < 0) return null;
-  const idx = host.results.findIndex(r=> r.team === team);
-  return idx < 0 ? null : { rank: idx, ms: host.results[idx].ms, gap: host.results[idx].ms - host.results[0].ms };
-}
+function myResult(){ return !!(host && team >= 0 && host.buzzed); }
 
 /* ---------- Pressing ---------- */
 function canPress(){
@@ -318,7 +312,7 @@ function press(e){
   wakeLock(); unlockAudio();
   if(!canPress()) return;
   pending = { rid: host.rid, at: Date.now() };
-  if(!send({ type:"buzz", rid: host.rid, team, t: t + offset, synced })){ pending = null; return; }
+  if(!send({ type:"buzz", rid: host.rid, team, t: t + offset, seen: liveAt + offset, synced })){ pending = null; return; }
   if(navigator.vibrate) try{ navigator.vibrate(70); }catch(err){}
   beep(880, 0.12);
   const f = $("flash"); f.classList.add("on"); setTimeout(()=> f.classList.remove("on"), 40);
@@ -374,13 +368,8 @@ function render(){
   const online = conn && conn.open && host;
 
   if(mine){
-    const first = mine.rank === 0;
-    cls = "done" + (first ? " first" : "");
-    b = "#" + (mine.rank + 1);
-    s = first ? "⚡ Fastest!" : "+" + fmt(mine.gap) + " behind";
-    msg = first ? "You buzzed first! Get ready to answer." : "You were #" + (mine.rank+1) + " — " + fmt(mine.gap) + " after the fastest team.";
-    hot = first;
-    if(lastRank !== mine.rank){ if(lastRank === -1 && first) beep(1320, 0.25); lastRank = mine.rank; }
+    cls = "done"; b = "✓"; s = "Buzzed in";
+    msg = "Your buzz is locked in. Watch the host screen.";
   } else if(pending && host && pending.rid === host.rid && Date.now() - pending.at < 3000){
     cls = "sent"; b = "✓"; s = "Buzz sent"; msg = "Buzz sent…";
   } else if(!online){
@@ -389,7 +378,7 @@ function render(){
   } else if(!host.eligible || !host.eligible[team]){
     b = "—"; s = "Not in this round"; msg = "Only finalist teams can buzz in this round.";
   } else if(!host.open){
-    b = "WAIT"; s = "Buzzers locked"; msg = "Wait for the quiz master to open the buzzers.";
+    b = "WAIT"; s = "Listen to the question"; msg = "The buzzer turns red when the quiz master starts it.";
   } else {
     cls = "ready"; b = "BUZZ!"; s = "Tap to buzz"; msg = "Buzzers are LIVE";
     hot = true;
@@ -399,21 +388,6 @@ function render(){
   btn.className = "buzz " + cls + (down ? " down" : "");
   big.textContent = b; small.textContent = s;
   st.textContent = msg; st.className = "status" + (hot ? " hot" : "");
-  renderRanks();
-}
-
-function renderRanks(){
-  const box = $("ranks");
-  if(!host || !host.results || !host.results.length){ box.classList.remove("show"); return; }
-  box.classList.add("show");
-  const lead = host.results[0].ms, medals = ["🥇","🥈","🥉"];
-  $("rankList").innerHTML = host.results.map((r,k)=>
-    '<div class="rrow'+(r.team===team?" me":"")+'">' +
-      '<span class="rk">'+(k<3?medals[k]:(k+1))+'</span>' +
-      '<span class="nm">'+esc(teamName(r.team))+'</span>' +
-      '<span class="gp">'+(k===0?"⚡ first":"+"+fmt(r.ms-lead))+'</span>' +
-    '</div>'
-  ).join("");
 }
 
 function renderPicker(){
@@ -423,7 +397,7 @@ function renderPicker(){
     const b = document.createElement("button");
     b.textContent = teamName(i);
     b.onclick = ()=>{
-      team = i; saveTeam(); updateUrl(); lastRank = -1;
+      team = i; saveTeam(); updateUrl();
       send({ type:"hello", team });
       render();
     };
@@ -431,7 +405,6 @@ function renderPicker(){
   }
 }
 
-$("changeTeam").onclick = ()=>{ team = -1; try{ localStorage.removeItem("tq-buzz-team-"+room); }catch(e){} updateUrl(); send({ type:"hello", team:-1 }); render(); };
 $("roomJoin").onclick = ()=>{
   const r = cleanRoom($("roomInput").value);
   if(!r) return;
