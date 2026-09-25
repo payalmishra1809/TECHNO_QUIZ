@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#0b2545">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>TECHNO QUIZ — Team Buzzer</title>
+<style>
+  :root {
+    --navy:#0b2545; --navy-2:#123465; --teal:#0e7c7b; --gold:#d4af37; --gold-2:#f0cf5a;
+    --bg:#0a1220; --bg-2:#0f1b30; --card:#142544; --card-2:#1a2f56;
+    --text:#eef2f8; --muted:#93a2ba; --good:#2ecc71; --bad:#e74c3c;
+    --border:rgba(255,255,255,0.10); --shadow:0 10px 30px rgba(0,0,0,0.35);
+  }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { height:100%; }
+  body {
+    margin:0; background:radial-gradient(900px 700px at 50% -10%, var(--bg-2), var(--bg));
+    color:var(--text); font-family:'Segoe UI', system-ui, -apple-system, Roboto, Arial, sans-serif;
+    -webkit-font-smoothing:antialiased; user-select:none; -webkit-user-select:none;
+    overscroll-behavior:none; touch-action:manipulation;
+  }
+  .app {
+    min-height:100%; max-width:560px; margin:0 auto; display:flex; flex-direction:column;
+    padding: calc(14px + env(safe-area-inset-top,0px)) 16px calc(16px + env(safe-area-inset-bottom,0px));
+  }
+
+  /* ---------- Header ---------- */
+  header {
+    display:flex; align-items:center; gap:12px; padding:12px 14px; border-radius:16px;
+    background:linear-gradient(135deg, var(--navy), var(--navy-2)); border:1px solid var(--border); box-shadow:var(--shadow);
+  }
+  .logo { width:40px; height:40px; border-radius:11px; flex:0 0 auto; display:flex; align-items:center; justify-content:center;
+    background:linear-gradient(135deg,var(--gold),var(--gold-2)); font-size:20px; box-shadow:0 4px 14px rgba(212,175,55,0.4); }
+  .hwrap { flex:1; min-width:0; }
+  .hsub { font-size:10.5px; color:#b9c6de; letter-spacing:1.2px; text-transform:uppercase; }
+  .hteam { font-size:20px; font-weight:800; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .conn { display:flex; align-items:center; gap:6px; font-size:11px; font-weight:700; color:#cfe0ff; flex:0 0 auto; }
+  .conn i { width:10px; height:10px; border-radius:50%; background:#8a8f99; display:inline-block; }
+  .conn.online i { background:var(--good); box-shadow:0 0 8px var(--good); }
+  .conn.connecting i, .conn.waiting i { background:var(--gold); animation:blink 1s infinite; }
+  .conn.error i { background:var(--bad); }
+  @keyframes blink { 50% { opacity:.3; } }
+
+  .round { text-align:center; margin:14px 0 0; font-size:12px; font-weight:800; letter-spacing:1.5px; text-transform:uppercase; color:var(--teal); min-height:15px; }
+
+  /* ---------- The buzzer ---------- */
+  .stage { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px; padding:18px 0 10px; }
+  .buzz {
+    --size: min(76vw, 50vh, 360px);
+    width:var(--size); height:var(--size); border-radius:50%; border:none; cursor:pointer; position:relative;
+    color:#fff; font-family:inherit; outline:none; touch-action:none;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px;
+    transition: transform .07s ease, background .2s ease, box-shadow .2s ease, filter .2s ease;
+  }
+  .buzz .big { font-size:calc(var(--size) * 0.19); font-weight:900; letter-spacing:2px; line-height:1; text-shadow:0 3px 12px rgba(0,0,0,.35); }
+  .buzz .small { font-size:calc(var(--size) * 0.055); font-weight:800; letter-spacing:1.2px; text-transform:uppercase; opacity:.9; padding:0 12%; text-align:center; }
+  .buzz::after { /* glossy top highlight */
+    content:""; position:absolute; top:7%; left:18%; right:18%; height:32%; border-radius:50%;
+    background:linear-gradient(to bottom, rgba(255,255,255,.35), rgba(255,255,255,0)); pointer-events:none;
+  }
+
+  .buzz.ready {
+    background:radial-gradient(circle at 50% 35%, #ff6b5b, #e0301e 55%, #9b1409);
+    box-shadow: 0 14px 0 #6d0c04, 0 22px 40px rgba(0,0,0,.5), 0 0 0 8px rgba(231,76,60,.18), 0 0 60px rgba(231,76,60,.45);
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+  .buzz.ready.down, .buzz.ready:active {
+    transform: translateY(12px) scale(.985);
+    box-shadow: 0 2px 0 #6d0c04, 0 6px 16px rgba(0,0,0,.5), 0 0 0 8px rgba(231,76,60,.25), 0 0 80px rgba(231,76,60,.6);
+    animation:none;
+  }
+  @keyframes pulse {
+    0%,100% { box-shadow: 0 14px 0 #6d0c04, 0 22px 40px rgba(0,0,0,.5), 0 0 0 8px rgba(231,76,60,.18), 0 0 50px rgba(231,76,60,.35); }
+    50%     { box-shadow: 0 14px 0 #6d0c04, 0 22px 40px rgba(0,0,0,.5), 0 0 0 16px rgba(231,76,60,.10), 0 0 80px rgba(231,76,60,.6); }
+  }
+  .buzz.sent {
+    background:radial-gradient(circle at 50% 35%, #f7dc7a, #d4af37 55%, #8d6f12);
+    box-shadow: 0 4px 0 #5e4a0a, 0 10px 26px rgba(0,0,0,.5), 0 0 60px rgba(212,175,55,.4);
+    transform: translateY(10px); color:#241a00;
+  }
+  .buzz.done {
+    background:radial-gradient(circle at 50% 35%, #2fd1cf, #0e7c7b 55%, #064544);
+    box-shadow: 0 4px 0 #032e2d, 0 10px 26px rgba(0,0,0,.5), 0 0 60px rgba(14,124,123,.45);
+    transform: translateY(10px);
+  }
+  .buzz.done.first {
+    background:radial-gradient(circle at 50% 35%, #fff2b0, #f0cf5a 45%, #b38b14);
+    box-shadow: 0 4px 0 #5e4a0a, 0 10px 26px rgba(0,0,0,.5), 0 0 90px rgba(240,207,90,.7);
+    color:#241a00; animation: winner 1.2s ease-in-out infinite;
+  }
+  @keyframes winner { 50% { filter:brightness(1.12); } }
+  .buzz.idle {
+    background:radial-gradient(circle at 50% 35%, #56637a, #3a465c 55%, #232c3d);
+    box-shadow: 0 10px 0 #151b27, 0 18px 34px rgba(0,0,0,.45); cursor:default; color:#c9d3e3;
+  }
+
+  .status { text-align:center; font-size:15px; font-weight:700; color:var(--muted); min-height:22px; padding:0 8px; }
+  .status.hot { color:var(--gold-2); }
+
+  /* ---------- Live ranking ---------- */
+  .ranks { background:var(--card); border:1px solid var(--border); border-radius:14px; padding:10px; display:none; }
+  .ranks.show { display:block; }
+  .ranks h4 { margin:2px 4px 8px; font-size:11px; letter-spacing:1.5px; text-transform:uppercase; color:var(--teal); }
+  .rrow { display:grid; grid-template-columns:30px minmax(0,1fr) auto; gap:8px; align-items:center; padding:7px 8px; border-radius:9px; font-size:14px; font-weight:700; }
+  .rrow + .rrow { margin-top:4px; }
+  .rrow.me { background:var(--card-2); box-shadow:0 0 0 2px var(--teal) inset; }
+  .rrow .rk { text-align:center; font-weight:900; color:var(--muted); }
+  .rrow .nm { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .rrow .gp { color:var(--gold-2); font-variant-numeric:tabular-nums; font-weight:900; }
+
+  /* ---------- Setup screens ---------- */
+  .panel { background:var(--card); border:1px solid var(--border); border-radius:18px; padding:20px; margin-top:18px; box-shadow:var(--shadow); }
+  .panel h2 { margin:0 0 6px; font-size:18px; }
+  .panel p { margin:0 0 14px; color:var(--muted); font-size:13.5px; }
+  .teams { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .teams button, .btn {
+    border:1px solid var(--border); background:var(--card-2); color:var(--text); font-family:inherit;
+    padding:16px 10px; border-radius:12px; font-weight:800; font-size:15px; cursor:pointer;
+  }
+  .teams button:active, .btn:active { transform:scale(.97); }
+  .btn.gold { background:linear-gradient(135deg,var(--gold),var(--gold-2)); color:#241a00; border:none; }
+  input.code {
+    width:100%; padding:14px; border-radius:12px; border:1px solid var(--border); background:var(--card-2); color:var(--text);
+    font-size:24px; font-weight:900; letter-spacing:6px; text-align:center; text-transform:uppercase; margin-bottom:12px; font-family:inherit;
+  }
+  .link { background:none; border:none; color:var(--muted); font-size:12.5px; text-decoration:underline; cursor:pointer; font-family:inherit; padding:8px; }
+  footer { text-align:center; }
+  .hidden { display:none !important; }
+
+  #flash { position:fixed; inset:0; pointer-events:none; background:rgba(240,207,90,.25); opacity:0; transition:opacity .35s ease; }
+  #flash.on { opacity:1; transition:none; }
+</style>
+</head>
+<body>
+<div id="flash"></div>
+<div class="app">
+  <header>
+    <div class="logo">🔔</div>
+    <div class="hwrap">
+      <div class="hsub">TECHNO QUIZ · Team Buzzer</div>
+      <div class="hteam" id="teamName">Buzzer</div>
+    </div>
+    <div class="conn connecting" id="conn"><i></i><span id="connTxt">…</span></div>
+  </header>
+
+  <!-- Enter room code -->
+  <section class="panel hidden" id="roomScreen">
+    <h2>Join the quiz</h2>
+    <p>Enter the room code shown on the quiz master's screen.</p>
+    <input class="code" id="roomInput" maxlength="8" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ROOM">
+    <button class="btn gold" id="roomJoin" style="width:100%;">Join</button>
+  </section>
+
+  <!-- Pick team -->
+  <section class="panel hidden" id="pickScreen">
+    <h2>Which team are you?</h2>
+    <p>Pick your team. Only one phone per team, please.</p>
+    <div class="teams" id="teamGrid"></div>
+  </section>
+
+  <!-- Buzzer -->
+  <section class="hidden" id="buzzScreen" style="flex:1;display:flex;flex-direction:column;">
+    <div class="round" id="roundLbl"></div>
+    <div class="stage">
+      <button class="buzz idle" id="buzzBtn" aria-label="Buzz">
+        <span class="big" id="buzzBig">…</span>
+        <span class="small" id="buzzSmall">Connecting</span>
+      </button>
+      <div class="status" id="status"></div>
+    </div>
+    <div class="ranks" id="ranks"><h4>Buzz order</h4><div id="rankList"></div></div>
+    <footer><button class="link" id="changeTeam">Change team</button></footer>
+  </section>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script>
+(function(){
+"use strict";
+
+const PEER_PREFIX = "technoquiz-buzz-";
+const $ = id => document.getElementById(id);
+const now = () => performance.timeOrigin + performance.now();
+const esc = s => String(s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const fmt = ms => (ms/1000).toFixed(3)+"s";
+
+/* ---------- Params ---------- */
+const params = new URLSearchParams(location.search);
+let room = cleanRoom(params.get("room"));
+let team = parseInt(params.get("team"),10) - 1;
+if(!(team >= 0 && team < 8)) team = savedTeam();
+
+function cleanRoom(r){ return String(r||"").toUpperCase().replace(/[^A-Z0-9]/g,""); }
+function savedTeam(){ try{ const v = parseInt(localStorage.getItem("tq-buzz-team-"+room),10); return v>=0 && v<8 ? v : -1; }catch(e){ return -1; } }
+function saveTeam(){ try{ localStorage.setItem("tq-buzz-team-"+room, String(team)); }catch(e){} }
+function updateUrl(){
+  const q = "?room="+encodeURIComponent(room) + (team>=0 ? "&team="+(team+1) : "");
+  try{ history.replaceState(null, "", location.pathname + q); }catch(e){}
+}
+
+/* ---------- Connection state ---------- */
+let peer = null, conn = null, retryT = null;
+let host = null;          // latest state from host
+let samples = [], offset = 0, synced = false;   // clock sync to host
+let pending = null;       // {rid, at} — press sent, waiting for confirmation
+let lastRank = -1;
+
+function setConn(kind, txt){
+  $("conn").className = "conn " + kind;
+  $("connTxt").textContent = txt;
+  render();
+}
+let connKind = "connecting", connMsg = "";
+function status(kind, msg){ connKind = kind; connMsg = msg||""; setConn(kind, kind==="online" ? "LIVE" : kind==="error" ? "ERROR" : "…"); }
+
+function startPeer(){
+  if(typeof Peer === "undefined"){ status("error", "Couldn't load the buzzer library. Check your internet and reload."); return; }
+  status("connecting", "Connecting…");
+  peer = new Peer({ debug:0 });
+  const p = peer;
+  p.on("open", ()=>{ if(p===peer) connectHost(); });
+  p.on("disconnected", ()=>{
+    if(p!==peer || p.destroyed) return;
+    setTimeout(()=>{ if(p===peer && !p.destroyed && p.disconnected){ try{ p.reconnect(); }catch(e){ restartPeer(); } } }, 1500);
+  });
+  p.on("error", err=>{
+    if(p!==peer) return;
+    if(err && err.type === "peer-unavailable"){
+      conn = null;
+      status("waiting", "Waiting for the quiz host… (room "+room+")");
+      scheduleConnect(3000);
+    } else if(p.destroyed){
+      status("connecting", "Network problem — retrying…");
+      setTimeout(restartPeer, 3000);
+    } else {
+      scheduleConnect(3000);
+    }
+  });
+}
+function restartPeer(){ const old = peer; peer = null; try{ old && old.destroy(); }catch(e){} startPeer(); }
+function scheduleConnect(ms){ clearTimeout(retryT); retryT = setTimeout(connectHost, ms); }
+
+function connectHost(){
+  clearTimeout(retryT);
+  if(!peer || peer.destroyed){ restartPeer(); return; }
+  if(peer.disconnected){ try{ peer.reconnect(); }catch(e){} scheduleConnect(2000); return; }
+  if(conn){ const old = conn; conn = null; try{ old.close(); }catch(e){} }
+  if(connKind !== "waiting") status("connecting", "Connecting to quiz host…");
+  const c = peer.connect(PEER_PREFIX + room, { reliable:true });
+  conn = c;
+  c.on("open", ()=>{
+    if(c !== conn) return;
+    status("online", "");
+    if(team >= 0) c.send({ type:"hello", team });
+    samples = []; syncBurst();
+  });
+  c.on("data", d=>{ if(c === conn) onMsg(d); });
+  const lost = ()=>{
+    if(c !== conn) return;
+    conn = null;
+    status("connecting", "Connection lost — reconnecting…");
+    scheduleConnect(1200);
+  };
+  c.on("close", lost); c.on("error", lost);
+  setTimeout(()=>{ if(c === conn && !c.open){ conn = null; try{ c.close(); }catch(e){} scheduleConnect(300); } }, 9000);
+}
+function send(msg){ try{ if(conn && conn.open){ conn.send(msg); return true; } }catch(e){} return false; }
+
+/* ---------- Clock sync (NTP-style, keep the lowest-latency sample) ---------- */
+function ping(){ send({ type:"ping", t0: now() }); }
+function syncBurst(){ for(let i=0;i<10;i++) setTimeout(ping, i*100); }
+setInterval(ping, 4000); // also acts as a heartbeat for the host
+function onPong(d){
+  const t1 = now(), rtt = t1 - d.t0;
+  if(!(rtt >= 0) || rtt > 5000) return;
+  samples.push({ rtt, off: d.th - (d.t0 + t1)/2 });
+  if(samples.length > 30) samples.shift();
+  let best = samples[0];
+  samples.forEach(s=>{ if(s.rtt < best.rtt) best = s; });
+  offset = best.off; synced = true;
+}
+
+/* ---------- Messages from host ---------- */
+function onMsg(d){
+  if(!d || typeof d !== "object") return;
+  if(d.type === "pong"){ onPong(d); return; }
+  if(d.type === "state"){
+    const prevRid = host && host.rid;
+    host = d;
+    if(pending && (pending.rid !== d.rid || myResult())) pending = null;
+    if(prevRid !== undefined && prevRid !== d.rid){ lastRank = -1; }
+    render();
+  }
+}
+function myResult(){
+  if(!host || team < 0) return null;
+  const idx = host.results.findIndex(r=> r.team === team);
+  return idx < 0 ? null : { rank: idx, ms: host.results[idx].ms, gap: host.results[idx].ms - host.results[0].ms };
+}
+
+/* ---------- Pressing ---------- */
+function canPress(){
+  return conn && conn.open && host && host.open && team >= 0 &&
+         host.eligible && host.eligible[team] && !myResult() && !(pending && pending.rid === host.rid);
+}
+function eventTime(e){
+  const pn = performance.now();
+  if(e && typeof e.timeStamp === "number" && e.timeStamp > 0 && e.timeStamp <= pn + 1 && pn - e.timeStamp < 1000)
+    return performance.timeOrigin + e.timeStamp;   // exact touch moment
+  return now();
+}
+function press(e){
+  const t = eventTime(e);
+  if(e && e.cancelable) e.preventDefault();
+  wakeLock(); unlockAudio();
+  if(!canPress()) return;
+  pending = { rid: host.rid, at: Date.now() };
+  if(!send({ type:"buzz", rid: host.rid, team, t: t + offset, synced })){ pending = null; return; }
+  if(navigator.vibrate) try{ navigator.vibrate(70); }catch(err){}
+  beep(880, 0.12);
+  const f = $("flash"); f.classList.add("on"); setTimeout(()=> f.classList.remove("on"), 40);
+  render();
+  setTimeout(render, 3100); // if no confirmation arrives, fall back to ready
+}
+const btn = $("buzzBtn");
+btn.addEventListener("pointerdown", e=>{ btn.classList.add("down"); press(e); });
+["pointerup","pointercancel","pointerleave"].forEach(ev=> btn.addEventListener(ev, ()=> btn.classList.remove("down")));
+btn.addEventListener("contextmenu", e=> e.preventDefault());
+document.addEventListener("keydown", e=>{ if((e.code === "Space" || e.code === "Enter") && !e.repeat && !$("buzzScreen").classList.contains("hidden")){ press(e); } });
+
+/* ---------- Sound + keep screen awake ---------- */
+let actx = null;
+function unlockAudio(){ if(!actx){ try{ actx = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } if(actx && actx.state === "suspended") actx.resume(); }
+function beep(freq, dur){
+  if(!actx) return;
+  try{
+    const o = actx.createOscillator(), g = actx.createGain();
+    o.type = "triangle"; o.frequency.value = freq; o.connect(g); g.connect(actx.destination);
+    const t0 = actx.currentTime;
+    g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.25, t0+0.01); g.gain.exponentialRampToValueAtTime(0.0001, t0+dur);
+    o.start(t0); o.stop(t0+dur+0.02);
+  }catch(e){}
+}
+let wl = null;
+function wakeLock(){
+  if(wl || !("wakeLock" in navigator)) return;
+  navigator.wakeLock.request("screen").then(l=>{ wl = l; l.addEventListener("release", ()=>{ wl = null; }); }).catch(()=>{});
+}
+document.addEventListener("visibilitychange", ()=>{
+  if(document.visibilityState === "visible"){
+    wakeLock();
+    if(!conn || !conn.open) scheduleConnect(100);
+  }
+});
+document.addEventListener("pointerdown", ()=>{ wakeLock(); unlockAudio(); }, { passive:true });
+
+/* ---------- Rendering ---------- */
+function teamName(i){ return (host && host.teams && host.teams[i]) || ("Team "+(i+1)); }
+function show(id){ ["roomScreen","pickScreen","buzzScreen"].forEach(s=> $(s).classList.toggle("hidden", s !== id)); }
+
+function render(){
+  if(!room){ show("roomScreen"); $("teamName").textContent = "Buzzer"; return; }
+  if(team < 0){ show("pickScreen"); renderPicker(); $("teamName").textContent = "Pick your team"; return; }
+  show("buzzScreen");
+  $("teamName").textContent = teamName(team);
+  $("roundLbl").textContent = host ? host.round || "" : "";
+
+  const big = $("buzzBig"), small = $("buzzSmall"), st = $("status");
+  let cls = "idle", b = "…", s = "", msg = "", hot = false;
+  const mine = myResult();
+  const online = conn && conn.open && host;
+
+  if(mine){
+    const first = mine.rank === 0;
+    cls = "done" + (first ? " first" : "");
+    b = "#" + (mine.rank + 1);
+    s = first ? "⚡ Fastest!" : "+" + fmt(mine.gap) + " behind";
+    msg = first ? "You buzzed first! Get ready to answer." : "You were #" + (mine.rank+1) + " — " + fmt(mine.gap) + " after the fastest team.";
+    hot = first;
+    if(lastRank !== mine.rank){ if(lastRank === -1 && first) beep(1320, 0.25); lastRank = mine.rank; }
+  } else if(pending && host && pending.rid === host.rid && Date.now() - pending.at < 3000){
+    cls = "sent"; b = "✓"; s = "Buzz sent"; msg = "Buzz sent…";
+  } else if(!online){
+    b = "…"; s = connKind === "waiting" ? "Waiting for host" : "Connecting";
+    msg = connMsg || "Connecting…";
+  } else if(!host.eligible || !host.eligible[team]){
+    b = "—"; s = "Not in this round"; msg = "Only finalist teams can buzz in this round.";
+  } else if(!host.open){
+    b = "WAIT"; s = "Buzzers locked"; msg = "Wait for the quiz master to open the buzzers.";
+  } else {
+    cls = "ready"; b = "BUZZ!"; s = "Tap to buzz"; msg = "Buzzers are LIVE";
+    hot = true;
+  }
+  // keep the pressed-down class only while the finger is on a live button
+  const down = btn.classList.contains("down") && cls === "ready";
+  btn.className = "buzz " + cls + (down ? " down" : "");
+  big.textContent = b; small.textContent = s;
+  st.textContent = msg; st.className = "status" + (hot ? " hot" : "");
+  renderRanks();
+}
+
+function renderRanks(){
+  const box = $("ranks");
+  if(!host || !host.results || !host.results.length){ box.classList.remove("show"); return; }
+  box.classList.add("show");
+  const lead = host.results[0].ms, medals = ["🥇","🥈","🥉"];
+  $("rankList").innerHTML = host.results.map((r,k)=>
+    '<div class="rrow'+(r.team===team?" me":"")+'">' +
+      '<span class="rk">'+(k<3?medals[k]:(k+1))+'</span>' +
+      '<span class="nm">'+esc(teamName(r.team))+'</span>' +
+      '<span class="gp">'+(k===0?"⚡ first":"+"+fmt(r.ms-lead))+'</span>' +
+    '</div>'
+  ).join("");
+}
+
+function renderPicker(){
+  const g = $("teamGrid");
+  g.innerHTML = "";
+  for(let i=0;i<8;i++){
+    const b = document.createElement("button");
+    b.textContent = teamName(i);
+    b.onclick = ()=>{
+      team = i; saveTeam(); updateUrl(); lastRank = -1;
+      send({ type:"hello", team });
+      render();
+    };
+    g.appendChild(b);
+  }
+}
+
+$("changeTeam").onclick = ()=>{ team = -1; try{ localStorage.removeItem("tq-buzz-team-"+room); }catch(e){} updateUrl(); send({ type:"hello", team:-1 }); render(); };
+$("roomJoin").onclick = ()=>{
+  const r = cleanRoom($("roomInput").value);
+  if(!r) return;
+  room = r; team = savedTeam(); updateUrl(); render(); startPeer();
+};
+$("roomInput").addEventListener("keydown", e=>{ if(e.key === "Enter") $("roomJoin").click(); });
+
+/* ---------- Init ---------- */
+render();
+if(room) startPeer();
+})();
+</script>
+</body>
+</html>
